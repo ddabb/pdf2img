@@ -2,20 +2,23 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFrameworks>net6.0;net7.0;net8.0;net9.0</TargetFrameworks>
+    <StartupObject>Pdf2Img.Program</StartupObject>
+    <LangVersion>10.0</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>pdf2img</ToolCommandName>
     <PackageOutputPath>./nupkg</PackageOutputPath>
     <PackageId>Pdf2Img</PackageId>
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
     <Authors>十六-泽楠</Authors>
     <Description>一个将PDF文件转换为各种图片格式的命令行工具</Description>
     <PackageTags>pdf;png;jpg;image;convert;tool</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/ddabb/Pdf2Img</PackageProjectUrl>
   </PropertyGroup>
 
   <ItemGroup>

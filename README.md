@@ -1,14 +1,15 @@
-# PDF2IMG
+# PDF2IMG 工具
 
-一个简单易用的命令行工具，用于将PDF文件转换为图片。
+PDF2IMG 是一个命令行工具，用于将PDF文件转换为图片格式（PNG、JPEG、BMP或TIFF）。
 
 ## 功能特点
 
-- 将PDF文件转换为多种格式的图片（PNG、JPEG、BMP、TIFF）
-- 保持图片尺寸与PDF页面尺寸一致
-- 支持指定输出图片的DPI
-- 支持选择性转换特定页面
-- 自动在PDF文件所在目录创建输出文件夹
+- 将PDF文件转换为多种图片格式（PNG、JPEG、BMP、TIFF）
+- 默认使用PDF页面的原始尺寸（1点=1像素）
+- 可选择指定DPI值进行缩放
+- 支持选择特定页面范围进行转换
+- 自动创建输出目录
+- 支持批量处理当前目录下的所有PDF文件
 
 ## 安装
 
@@ -18,58 +19,45 @@ dotnet tool install --global Pdf2Img
 
 ## 使用方法
 
-```bash
-pdf2img [选项] <输入PDF文件>
+```
+用法: pdf2img [选项] <输入PDF文件>
+
+选项:
+  -i, --input <path>       输入PDF文件路径
+  -o, --output <path>      输出图片目录路径 (默认: 当前目录)
+  -f, --format <format>    输出图片格式: png(默认), jpg, bmp, tiff
+  -d, --dpi <number>       输出图片DPI
+                          不指定DPI时，默认使用PDF页面的原始尺寸
+                          较低的DPI值(如72-150)生成较小的文件，适合屏幕显示
+                          较高的DPI值(如300-600)生成较大的文件，适合打印
+  -p, --pages <range>      要转换的页面范围 (例如: 1-5,7,9-10)
+                          不指定则转换所有页面
+  -h, --help               显示帮助信息
 ```
 
-### 选项
-
-- `-i, --input <path>` - 输入PDF文件路径
-- `-o, --output <path>` - 输出图片目录路径（默认：与输入文件同目录）
-- `-f, --format <format>` - 输出图片格式：png（默认）、jpg、bmp、tiff
-- `-d, --dpi <number>` - 输出图片DPI（默认：300）
-- `-p, --pages <range>` - 要转换的页面范围（例如：1-5,7,9-10）
-- `-h, --help` - 显示帮助信息
-
-### 示例
+## 示例
 
 ```bash
 # 处理当前目录下的所有PDF文件
 pdf2img
 
-# 转换整个PDF文件为PNG图片（默认格式）
+# 使用原始尺寸转换指定PDF文件
 pdf2img input.pdf
 
-# 指定输入和输出路径
-pdf2img -i C:\Documents\input.pdf -o D:\Images\
+# 指定输出目录
+pdf2img -i input.pdf -o C:\Images\
 
-# 转换为JPEG格式，并设置DPI为150
+# 使用指定DPI值转换为JPG格式
 pdf2img -i input.pdf -f jpg -d 150
 
 # 只转换特定页面
-pdf2img -i document.pdf -p 1-3,5,7-9
+pdf2img -i input.pdf -p 1-3,5,7-9
 ```
 
 ## 输出
 
-程序会在指定的输出目录（或默认与输入文件同目录）下创建一个与PDF文件同名的文件夹，并将转换后的图片保存到该文件夹中。
-
-例如，如果输入文件是`C:\Documents\report.pdf`，则输出图片将保存在`C:\Documents\report\`目录下。
+转换后的图片将保存在以PDF文件名命名的子目录中，每个页面生成一个单独的图片文件，文件名格式为：`{PDF文件名}_page{页码}.{扩展名}`。
 
 ## 系统要求
 
 - .NET 6.0 或更高版本
-- Windows 操作系统（由于使用了System.Drawing，主要支持Windows平台）
-
-## 许可证
-
-本项目使用MIT许可证。
-
-### 第三方库许可证
-
-本项目使用了以下第三方库：
-
-- **SixLabors.ImageSharp** - 使用Apache 2.0许可证
-- **PdfiumViewer** - 使用Apache 2.0许可证，基于Google的PDFium引擎，完全开源且无水印
-
-请在使用本工具进行商业项目之前，确保您了解并遵守Spire.PDF的许可条款。

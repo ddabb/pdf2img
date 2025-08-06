@@ -66,7 +66,8 @@ namespace Pdf2Img
                         try
                         {
                             Console.WriteLine($"\n处理文件: {Path.GetFileName(pdfFile)}");
-                            ConvertPdfToImages(pdfFile, currentDirectory, OutputImageFormat.PNG, 300, null);
+                            // 默认使用原始尺寸
+                            ConvertPdfToImages(pdfFile, currentDirectory, OutputImageFormat.PNG, null, null);
                             successCount++;
                         }
                         catch (Exception ex)
@@ -124,7 +125,7 @@ namespace Pdf2Img
                 }
 
                 // 获取DPI设置
-                int dpi = 300; // 默认DPI
+                int? dpi = null; // 默认为null，表示使用原始尺寸
                 string dpiStr = parser.GetOptionValue("-d") ?? parser.GetOptionValue("--dpi");
                 if (!string.IsNullOrEmpty(dpiStr) && int.TryParse(dpiStr, out int parsedDpi))
                 {
@@ -262,16 +263,19 @@ namespace Pdf2Img
             Console.WriteLine("  -i, --input <path>       输入PDF文件路径");
             Console.WriteLine("  -o, --output <path>      输出图片目录路径 (默认: 当前目录)");
             Console.WriteLine("  -f, --format <format>    输出图片格式: png(默认), jpg, bmp, tiff");
-            Console.WriteLine("  -d, --dpi <number>       输出图片DPI (默认: 300)");
+            Console.WriteLine("  -d, --dpi <number>       输出图片DPI");
+            Console.WriteLine("                          不指定DPI时，默认使用PDF页面的原始尺寸");
+            Console.WriteLine("                          较低的DPI值(如72-150)生成较小的文件，适合屏幕显示");
+            Console.WriteLine("                          较高的DPI值(如300-600)生成较大的文件，适合打印");
             Console.WriteLine("  -p, --pages <range>      要转换的页面范围 (例如: 1-5,7,9-10)");
             Console.WriteLine("                          不指定则转换所有页面");
             Console.WriteLine("  -h, --help               显示帮助信息");
             Console.WriteLine();
             Console.WriteLine("示例:");
             Console.WriteLine("  pdf2img                           # 处理当前目录下的所有PDF文件");
-            Console.WriteLine("  pdf2img input.pdf");
+            Console.WriteLine("  pdf2img input.pdf                 # 使用原始尺寸");
             Console.WriteLine("  pdf2img -i input.pdf -o C:\\Images\\");
-            Console.WriteLine("  pdf2img -i input.pdf -f jpg -d 150");
+            Console.WriteLine("  pdf2img -i input.pdf -f jpg -d 150  # 使用指定DPI");
             Console.WriteLine("  pdf2img -i input.pdf -p 1-3,5,7-9");
         }
 
@@ -315,9 +319,9 @@ namespace Pdf2Img
         /// <param name="inputPath">输入PDF路径</param>
         /// <param name="outputPath">输出图片目录路径</param>
         /// <param name="format">输出图片格式</param>
-        /// <param name="dpi">输出图片DPI</param>
+        /// <param name="dpi">输出图片DPI，为null时使用原始尺寸</param>
         /// <param name="pageRange">要转换的页面索引列表，为null则转换所有页面</param>
-        private static void ConvertPdfToImages(string inputPath, string outputPath, OutputImageFormat format, int dpi, List<int> pageRange)
+        private static void ConvertPdfToImages(string inputPath, string outputPath, OutputImageFormat format, int? dpi, List<int> pageRange)
         {
             // 验证输入文件存在
             if (!File.Exists(inputPath))
@@ -422,10 +426,77 @@ namespace Pdf2Img
                             string outputFileName = $"{inputFileName}_page{pageNumber:D3}{extension}";
                             string outputFilePath = Path.Combine(finalOutputPath, outputFileName);
 
-                            // 使用PdfiumViewer渲染页面到图像
-                            using (var bitmap = document.Render(pageIndex, (int)(document.PageSizes[pageIndex].Width * dpi / 72.0), 
-                                                              (int)(document.PageSizes[pageIndex].Height * dpi / 72.0), dpi, dpi, 
-                                                              PdfRenderFlags.Annotations))
+                            // 获取PDF页面的实际尺寸
+                            var pageSize = document.PageSizes[pageIndex];
+                            
+                            // PdfiumViewer不直接提供获取页面旋转的方法，但我们可以通过比较宽高来推断
+                            // 标准页面通常宽度小于高度（如A4纸）
+                            bool isRotated = pageSize.Width > pageSize.Height;
+                            int rotation = isRotated ? 90 : 0;
+                            
+                            // PDF页面尺寸单位是点(point)，1点=1/72英寸
+                            // PdfiumViewer中的PageSizes返回的是点单位
+                            const double PDF_POINT_TO_INCH = 1.0 / 72.0;
+                            
+                            // 计算输出图像的尺寸
+                            int width, height;
+                            int renderDpi;
+                            
+                            if (!dpi.HasValue)
+                            {
+                                // 使用原始尺寸（1点 = 1像素）
+                                width = (int)Math.Round(pageSize.Width);
+                                height = (int)Math.Round(pageSize.Height);
+                                renderDpi = 72; // PDF的原始DPI
+                            }
+                            else
+                            {
+                                // 根据DPI转换
+                                // 公式：尺寸(像素) = 尺寸(点) * DPI / 72.0
+                                width = (int)Math.Round(pageSize.Width * dpi.Value / 72.0);
+                                height = (int)Math.Round(pageSize.Height * dpi.Value / 72.0);
+                                renderDpi = dpi.Value;
+                            }
+                            
+                            // 如果页面有旋转，交换宽度和高度
+                            if (rotation == 90 || rotation == 270)
+                            {
+                                int temp = width;
+                                width = height;
+                                height = temp;
+                            }
+                            
+                            // 计算物理尺寸信息（用于显示）
+                            double widthInInches = pageSize.Width * PDF_POINT_TO_INCH;
+                            double heightInInches = pageSize.Height * PDF_POINT_TO_INCH;
+                            
+                            // 转换为毫米（1英寸 = 25.4毫米）
+                            double widthInMm = widthInInches * 25.4;
+                            double heightInMm = heightInInches * 25.4;
+                            
+                            // 如果页面有旋转，交换宽度和高度（仅用于显示）
+                            if (rotation == 90 || rotation == 270)
+                            {
+                                double tempInches = widthInInches;
+                                widthInInches = heightInInches;
+                                heightInInches = tempInches;
+                                
+                                double tempMm = widthInMm;
+                                widthInMm = heightInMm;
+                                heightInMm = tempMm;
+                            }
+                            
+                            Console.WriteLine($"\n页面 {pageNumber} 尺寸:");
+                            Console.WriteLine($"  点: {pageSize.Width:F2} × {pageSize.Height:F2} 点");
+                            Console.WriteLine($"  英寸: {widthInInches:F2} × {heightInInches:F2} 英寸");
+                            Console.WriteLine($"  毫米: {widthInMm:F2} × {heightInMm:F2} 毫米");
+                            Console.WriteLine($"  像素: {width} × {height} 像素 {(!dpi.HasValue ? "(原始尺寸)" : $"(@ {dpi.Value} DPI)")}");
+                            Console.WriteLine($"  旋转: {rotation} 度");
+                            
+                            // 使用PdfiumViewer渲染页面到图像，确保尺寸精确匹配
+                            // 注意：PdfiumViewer的Render方法会自动处理页面旋转
+                            using (var bitmap = document.Render(pageIndex, width, height, renderDpi, renderDpi, 
+                                                              PdfRenderFlags.Annotations | PdfRenderFlags.LcdText))
                             {
                                 // 将System.Drawing.Bitmap转换为SixLabors.ImageSharp.Image
                                 using (var memoryStream = new MemoryStream())
