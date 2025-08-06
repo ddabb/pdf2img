@@ -3,8 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using Spire.Pdf;
-using Spire.Pdf.Graphics;
+using PdfiumViewer;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Formats.Png;
@@ -12,6 +11,8 @@ using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Formats.Bmp;
 using SixLabors.ImageSharp.Formats.Tiff;
 using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.PixelFormats;
+using System.Drawing;
 
 namespace Pdf2Img
 {
@@ -357,20 +358,13 @@ namespace Pdf2Img
                 throw new IOException($"创建输出目录时出错: {ex.Message}", ex);
             }
 
-            // 检查是否为Windows平台
-            bool isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-
-            // 创建PDF文档实例
-            using (PdfDocument pdf = new PdfDocument())
+            // 使用PdfiumViewer加载PDF文件
+            using (var document = PdfiumViewer.PdfDocument.Load(inputPath))
             {
                 try
                 {
-                    // 加载PDF文件
-                    Console.WriteLine($"正在加载PDF文件: {inputPath}");
-                    pdf.LoadFromFile(inputPath);
-
                     // 获取页面数量
-                    int pageCount = pdf.Pages.Count;
+                    int pageCount = document.PageCount;
                     Console.WriteLine($"PDF文件共有 {pageCount} 页");
 
                     // 确定要处理的页面
@@ -391,6 +385,7 @@ namespace Pdf2Img
                     // 转换每一页
                     int processedCount = 0;
                     int errorCount = 0;
+                    
                     foreach (int pageIndex in pagesToProcess)
                     {
                         processedCount++;
@@ -399,11 +394,6 @@ namespace Pdf2Img
 
                         try
                         {
-                            // 获取页面尺寸
-                            var pdfPage = pdf.Pages[pageIndex];
-                            float pageWidth = pdfPage.Size.Width;
-                            float pageHeight = pdfPage.Size.Height;
-                            
                             // 生成输出文件名
                             string extension;
                             IImageEncoder encoder;
@@ -432,35 +422,21 @@ namespace Pdf2Img
                             string outputFileName = $"{inputFileName}_page{pageNumber:D3}{extension}";
                             string outputFilePath = Path.Combine(finalOutputPath, outputFileName);
 
-                            if (isWindows)
+                            // 使用PdfiumViewer渲染页面到图像
+                            using (var bitmap = document.Render(pageIndex, (int)(document.PageSizes[pageIndex].Width * dpi / 72.0), 
+                                                              (int)(document.PageSizes[pageIndex].Height * dpi / 72.0), dpi, dpi, 
+                                                              PdfRenderFlags.Annotations))
                             {
-                                // 在Windows平台上使用Spire.PDF的SaveAsImage方法
-                                using (System.Drawing.Image image = pdf.SaveAsImage(pageIndex, PdfImageType.Bitmap, dpi, dpi))
-                                {
-                                    // 保存图片
-                                    image.Save(outputFilePath, GetSystemDrawingImageFormat(format));
-                                }
-                            }
-                            else
-                            {
-                                // 在非Windows平台上使用替代方法
-                                // 注意：这里需要先将Spire.PDF生成的图像转换为内存流，然后用ImageSharp处理
+                                // 将System.Drawing.Bitmap转换为SixLabors.ImageSharp.Image
                                 using (var memoryStream = new MemoryStream())
                                 {
-                                    // 先保存到内存流
-                                    using (System.Drawing.Image image = pdf.SaveAsImage(pageIndex, PdfImageType.Bitmap, dpi, dpi))
-                                    {
-                                        image.Save(memoryStream, System.Drawing.Imaging.ImageFormat.Png);
-                                    }
-
-                                    // 重置内存流位置
+                                    bitmap.Save(memoryStream, System.Drawing.Imaging.ImageFormat.Png);
                                     memoryStream.Position = 0;
-
-                                    // 使用ImageSharp加载和保存图像
-                                    using (var imageSharp = Image.Load(memoryStream))
+                                    
+                                    using (var image = SixLabors.ImageSharp.Image.Load(memoryStream))
                                     {
-                                        // 保存图片
-                                        imageSharp.Save(outputFilePath, encoder);
+                                        // 保存图像
+                                        image.Save(outputFilePath, encoder);
                                     }
                                 }
                             }
@@ -492,25 +468,6 @@ namespace Pdf2Img
                 {
                     throw new Exception($"处理PDF文件时出错: {ex.Message}", ex);
                 }
-            }
-        }
-
-        /// <summary>
-        /// 获取System.Drawing.Imaging.ImageFormat对象（仅用于Windows平台）
-        /// </summary>
-        private static System.Drawing.Imaging.ImageFormat GetSystemDrawingImageFormat(OutputImageFormat format)
-        {
-            switch (format)
-            {
-                case OutputImageFormat.JPEG:
-                    return System.Drawing.Imaging.ImageFormat.Jpeg;
-                case OutputImageFormat.BMP:
-                    return System.Drawing.Imaging.ImageFormat.Bmp;
-                case OutputImageFormat.TIFF:
-                    return System.Drawing.Imaging.ImageFormat.Tiff;
-                case OutputImageFormat.PNG:
-                default:
-                    return System.Drawing.Imaging.ImageFormat.Png;
             }
         }
     }

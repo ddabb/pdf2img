@@ -70,11 +70,6 @@ pdf2img -i document.pdf -p 1-3,5,7-9
 本项目使用了以下第三方库：
 
 - **SixLabors.ImageSharp** - 使用Apache 2.0许可证
-- **Spire.PDF** - 商业许可证，免费版有使用限制
-
-注意：Spire.PDF免费版有以下限制：
-1. 处理的PDF文件页数限制
-2. 可能包含水印
-3. 商业用途可能需要购买许可证
+- **PdfiumViewer** - 使用Apache 2.0许可证，基于Google的PDFium引擎，完全开源且无水印
 
 请在使用本工具进行商业项目之前，确保您了解并遵守Spire.PDF的许可条款。
